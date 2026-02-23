@@ -57,16 +57,11 @@ class AlpacaTradingEnvironment:
 
             if position.symbol == self._ticker_symbol_str:
                 ticker_data_dict: dict[str, Any] = {
-                    "ticker_symbol": position.symbol,
                     "quantity": position.qty,
                     "qty_available": position.qty_available,
-                    "exchange_name": position.exchange.name,
                     "cost_basis": position.cost_basis,
-                    "market_value": position.market_value,
                     "current_price": position.current_price,
                     "change_today": position.change_today,
-                    "unrealized_intraday_pl": position.unrealized_intraday_pl,
-                    "unrealized_intraday_plpc": position.unrealized_intraday_plpc
                 }
 
                 return ticker_data_dict
@@ -85,18 +80,10 @@ class AlpacaTradingEnvironment:
 
             cash_float: float = float(response_dict["cash"])
             equity_float: float = float(response_dict["equity"])
-            last_equity_float: float = float(response_dict["last_equity"])
-            buying_power_float: float = float(response_dict["buying_power"])
-            portfolio_value_float: float = float(response_dict["portfolio_value"])
-            effective_buying_power_float: float = float(response_dict["effective_buying_power"])
 
             account_data_dict: dict[str, float] = {
                 "cash": cash_float,
                 "equity": equity_float,
-                "last_equity": last_equity_float,
-                "buying_power": buying_power_float,
-                "portfolio_value": portfolio_value_float,
-                "effective_buying_power": effective_buying_power_float,
             }
 
             return account_data_dict
@@ -110,7 +97,30 @@ class AlpacaTradingEnvironment:
 
         # return observation, reward_tensor, terminated, truncated, _
 
-    def get_ticker_state_dict(self) -> dict[str, Any]:
+    def get_state_dict(self) -> dict[str, Any]:
+
+        state_dict:dict[str, Any] = {}
+        individual_stock_data_list: list[HistoricalStockDataObj] = self.get_individual_stock_data_list()
+
+        market_features_dict:dict[str, float] = self.get_market_features_dict()
+
+        for data_obj in individual_stock_data_list:
+            self.logger.info(f"data_obj.observation_num = {data_obj.observation_num}")
+            self.logger.info(f"data_obj.ticker_symbol_id = {data_obj.ticker_symbol_id}")
+            self.logger.info(f"data_obj.timestamp = {data_obj.timestamp}")
+            self.logger.info(f"data_obj.open = {data_obj.open}")
+            self.logger.info(f"data_obj.close = {data_obj.close}")
+            self.logger.info(f"data_obj.high = {data_obj.high}")
+            self.logger.info(f"data_obj.low = {data_obj.low}")
+            self.logger.info(f"data_obj.volume = {data_obj.volume}")
+            break
+
+        for key, value in market_features_dict.items():
+            self.logger.info(f"key = {key} -> value = {value}")
+
+        return state_dict
+
+    def get_market_features_dict(self) -> dict[str, float]:
 
         account_data_dict: dict[str, Any] = self._get_account_data_dict()
         ticker_data_dict: dict[str, Any] = self._get_ticker_data_dict()
@@ -118,7 +128,7 @@ class AlpacaTradingEnvironment:
 
         return ticker_state_dict
 
-    def retrieve_individual_stock_data_list(self) -> list[HistoricalStockDataObj]:
+    def get_individual_stock_data_list(self) -> list[HistoricalStockDataObj]:
 
         file_path: Path = self._get_data_file_path()
 
@@ -139,7 +149,6 @@ class AlpacaTradingEnvironment:
 
                 historical_stock_obj: HistoricalStockDataObj = HistoricalStockDataObj(
                     observation_num=int(values[0]),
-                    ticker_symbol_str=values[1],
                     ticker_symbol_id=int(values[2]),
                     timestamp=datetime.fromisoformat(values[3]),
                     open=float(values[4]),
@@ -151,10 +160,8 @@ class AlpacaTradingEnvironment:
 
                 historical_stock_data_list.append(historical_stock_obj)
 
-        for index, historical_data_obj in enumerate(historical_stock_data_list):
-            self.logger.info(f"historical_data_obj = {historical_data_obj}")
-
         return historical_stock_data_list
+
 
     def _get_data_file_path(self) -> Path:
 
