@@ -1,9 +1,16 @@
+import asyncio
+import queue
 import random
-from datetime import datetime
+from asyncio import Task
+from collections import deque
+from datetime import datetime, time
 from pathlib import Path
 from typing import Any, TypeVar
+from zoneinfo import ZoneInfo
 
 import requests
+from alpaca.data.live import StockDataStream
+from alpaca.data.models.bars import Bar
 from alpaca.trading.client import TradingClient
 from alpaca.trading.enums import OrderSide, TimeInForce, OrderType
 from alpaca.trading.models import Order
@@ -17,38 +24,147 @@ from trading_account.historical_stock_data_obj import HistoricalStockDataObj
 from utils.constants import Constants
 
 
-# # TODO: Look into the following for live second-to-second training data using a websocket as opposed to the REST API
-# # NOTE: Max pings per minute is 200
-
-# from alpaca.data.live import StockDataStream
-#
-# # Use PAPER API KEY and SECRET
-# api_key = "PAPER_API_KEY"
-# secret_key = "PAPER_SECRET_KEY"
-#
-# stream = StockDataStream(api_key, secret_key)
-#
-# async def handle_bar(data):
-#     # Process incoming bar data
-#     print(f"Bar: {data}")
-#
-# # Subscribe to 1-minute bars for AAPL
-# stream.subscribe_bars(handle_bar, "AAPL")
-#
-# # Start the stream
-# stream.run()
-
-
 class AlpacaTradingEnvironment:
     ObsType: TypeVar = TypeVar("ObsType")
 
     def __init__(self, ticker_symbol_str: str) -> None:
         self._api_key: str = settings.api_key
         self._ticker_symbol_str: str = ticker_symbol_str
+        self._bar_queue: queue.Queue[dict] = queue.Queue()
+        self._bar_history: deque[dict] = deque(maxlen=5000)
+        self._latest_bar_dict: dict[str, Any] | None = None
         self._api_secret_key: str = settings.api_secret_key
-        self._trading_client: TradingClient = TradingClient(self._api_key, self._api_secret_key, paper=True)
         self._action_space: list[str] = Constants.ACTIONS_LIST
+        self._first_bar_event: asyncio.Event = asyncio.Event()
+        self._close_of_market_time: time = time(16, 0)
+        self._trading_client: TradingClient = TradingClient(self._api_key, self._api_secret_key, paper=True)
+
         self.logger = AppLogger.get_logger(self.__class__.__name__)
+
+    async def _handle_bar(self, data) -> None:
+        data_bar: Bar = data
+        bar_dict: dict = data.model_dump()
+
+        # store latest + history if you want
+        self._latest_bar_dict = bar_dict
+        self._bar_history.append(bar_dict)
+
+        # thread-safe handoff to your RL consumer loop
+        self._bar_queue.put(bar_dict)
+
+    async def execute_trading_environment(self) -> None:
+
+        data_stream: StockDataStream = StockDataStream(api_key=self._api_key, secret_key=self._api_secret_key)
+
+        try:
+
+            # TODO: Use the following when ready to change multiple equities -> "TSLA", "AAPL", "META", "AMZN", "MSFT", "NVDA", "GOOGL"
+
+            data_stream.subscribe_bars(self._handle_bar, "AAPL")
+
+            stream_task: Task = asyncio.create_task(asyncio.to_thread(data_stream.run))
+
+            while True:
+
+                portfolio_list: list = self._trading_client.get_all_positions()
+
+                state_data_dict: dict = await asyncio.to_thread(self._bar_queue.get) | self.get_market_features_dict(
+                    portfolio_list=portfolio_list)
+
+                # # TODO: Use for testing
+                # test_dict: dict[str, Any] = {"symbol": "AAPL",
+                #                              "cash": 100_000}
+
+                random_action: OrderSide | str = self._get_random_action_from_action_space()
+
+                if random_action == "HOLD":
+                    continue
+
+                random_quantity: int = self._get_random_quantity(state_data_dict=state_data_dict,
+                                                                 portfolio_list=portfolio_list,
+                                                                 random_action=random_action)
+
+                self.logger.info(f"random_action = {random_action}")
+                self.logger.info(f"random_quantity = {random_quantity}")
+                self.logger.info("=" * 100)
+
+                self.execute_random_action(quantity=random_quantity, random_action=random_action)
+
+                timestamp_utc: datetime = state_data_dict.get("timestamp")
+                current_time_est: time = timestamp_utc.astimezone(ZoneInfo("America/New_York")).time()
+
+                if current_time_est >= self._close_of_market_time:
+                    break
+
+                # <-- THIS is where you build your (s, a, r, s') transition
+                # e.g.:
+                # s  = build_state(latest_bar_dict, market_features_dict, ...)
+                # a  = agent.act(s)
+                # r  = reward(...)
+                # s2 = next_state(...)
+
+            await stream_task  # (won't reach in infinite loop unless you break)
+
+        except Exception as e:
+            self.logger.error(f"Exception Thrown: {e}")
+
+    def _get_random_action_from_action_space(self) -> OrderSide | str:
+        return random.choice(self._action_space)
+
+    def _get_random_quantity(self, state_data_dict: dict[str, Any], portfolio_list: list,
+                             random_action: OrderSide | str) -> int:
+
+        current_symbol: str = state_data_dict.get("symbol")
+        current_cash_t: float = state_data_dict.get("cash")
+
+        for element in portfolio_list:
+            portfolio_symbol: str = element.symbol
+
+            if portfolio_symbol != current_symbol:
+                continue
+
+            current_quantity: int = int(element.qty)
+            current_price: float = float(element.current_price)
+
+            is_sell_order: bool = random_action == OrderSide.SELL
+            is_buy_order: bool = random_action == OrderSide.BUY
+
+            if is_sell_order:
+                max_valid_quantity: int = current_quantity
+                return self._get_random_int(max_valid_quantity=max_valid_quantity)
+
+            if is_buy_order:
+                max_valid_quantity: int = int(current_cash_t // current_price)
+                return self._get_random_int(max_valid_quantity=max_valid_quantity)
+
+        return 0
+
+    def _get_random_int(self, max_valid_quantity: int) -> int:
+        if max_valid_quantity <= 0:
+            return 0
+        return random.randint(1, max_valid_quantity)
+
+    def execute_random_action(self, quantity: float, random_action: OrderSide | str) -> None:
+
+        try:
+
+            market_order_request: MarketOrderRequest = MarketOrderRequest(
+                symbol=self._ticker_symbol_str,
+                qty=quantity,
+                side=random_action,
+                order_type=OrderType.MARKET,
+                time_in_force=TimeInForce.DAY
+            )
+
+            market_order: Order = self._trading_client.submit_order(
+                order_data=market_order_request
+            )
+
+            self.logger.info(
+                f"Successful {market_order.side.name} {market_order.qty} share(s) of {market_order.symbol}")
+
+        except Exception as e:
+            self.logger.warning(f"Exception Thrown: {e}")
 
     def execute_action(self, quantity: int, action_type: OrderSide) -> None:
 
@@ -72,8 +188,7 @@ class AlpacaTradingEnvironment:
         except Exception as e:
             self.logger.warning(f"Exception Thrown: {e}")
 
-    def _get_ticker_data_dict(self) -> dict[str, Any]:
-        portfolio_list: list = self._trading_client.get_all_positions()
+    def _get_ticker_data_dict(self, portfolio_list: list) -> dict[str, Any]:
 
         for position in portfolio_list:
 
@@ -142,10 +257,10 @@ class AlpacaTradingEnvironment:
 
         return state_dict
 
-    def get_market_features_dict(self) -> dict[str, float]:
+    def get_market_features_dict(self, portfolio_list: list) -> dict[str, float]:
 
         account_data_dict: dict[str, Any] = self._get_account_data_dict()
-        ticker_data_dict: dict[str, Any] = self._get_ticker_data_dict()
+        ticker_data_dict: dict[str, Any] = self._get_ticker_data_dict(portfolio_list=portfolio_list)
         ticker_state_dict: dict[str, Any] = account_data_dict | ticker_data_dict
 
         return ticker_state_dict
@@ -196,6 +311,3 @@ class AlpacaTradingEnvironment:
                 break
 
         return file_path
-
-    def get_random_action_from_action_space(self) -> str:
-        return random.choice(self._action_space)
