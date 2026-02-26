@@ -1,4 +1,7 @@
+from typing import Any
+
 from alpaca.trading.enums import OrderSide
+
 
 class Constants:
     LOGGER_COLOR_RESET: str = "\033[0m"
@@ -6,9 +9,8 @@ class Constants:
     LOGGER_COLOR_ORANGE: str = "\033[33m"
     LOGGER_COLOR_DARK_RED: str = "\033[31m"
 
-    ACTIONS_LIST:list[str] = [OrderSide.BUY.name, OrderSide.SELL.name, "HOLD"]
-
     ALPACA_ACCOUNT_URL: str = "https://paper-api.alpaca.markets/v2/account"
 
-    TICKER_SYMBOL_LIST: list[str] = ["TSLA", "AAPL", "META", "AMZN", "MSFT", "NVDA", "GOOGL"]
+    ACTIONS_LIST: list[OrderSide | str] = [OrderSide.BUY, OrderSide.SELL, "HOLD"]
 
+    TICKER_SYMBOL_LIST: list[str] = ["TSLA", "AAPL", "META", "AMZN", "MSFT", "NVDA", "GOOGL"]
