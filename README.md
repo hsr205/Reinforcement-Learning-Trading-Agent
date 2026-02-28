@@ -1,4 +1,4 @@
-# Agentic Stock Predictor
+# Agentic Stock Trader
 
 <p align="center">
   An agent-based reinforcement learning system for intelligent stock prediction and decision-making.
