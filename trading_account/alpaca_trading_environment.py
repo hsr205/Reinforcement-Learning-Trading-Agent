@@ -8,24 +8,24 @@ from pathlib import Path
 from typing import Any, TypeVar
 from zoneinfo import ZoneInfo
 
-import requests
 from alpaca.data.live import StockDataStream
 from alpaca.data.models.bars import Bar
 from alpaca.trading.client import TradingClient
 from alpaca.trading.enums import OrderSide, TimeInForce, OrderType
 from alpaca.trading.models import Order
 from alpaca.trading.requests import MarketOrderRequest
-from requests.models import Response
 from torch import Tensor
 
 from config.config import settings
 from logger.logger import AppLogger
-from trading_account.historical_stock_data_obj import HistoricalStockDataObj
+from trading_account.alpaca_trading_account import AlpacaTradingAccount
 from utils.constants import Constants
+from utils.trading_activity_csv_writer import TradingActivityCsvWriter
 
 
 class AlpacaTradingEnvironment:
     ObsType: TypeVar = TypeVar("ObsType")
+    alpaca_trading_account: AlpacaTradingAccount = AlpacaTradingAccount()
 
     def __init__(self) -> None:
         self._api_key: str = settings.api_key
@@ -36,8 +36,8 @@ class AlpacaTradingEnvironment:
         self._action_space: list[str] = Constants.ACTIONS_LIST
         self._first_bar_event: asyncio.Event = asyncio.Event()
         self._close_of_market_time: time = time(16, 0)
+        self._trading_csv_writer: TradingActivityCsvWriter = TradingActivityCsvWriter(_base_dir=Path.cwd())
         self._trading_client: TradingClient = TradingClient(self._api_key, self._api_secret_key, paper=True)
-
         self.logger = AppLogger.get_logger(self.__class__.__name__)
 
     async def _handle_bar(self, data) -> None:
@@ -65,7 +65,6 @@ class AlpacaTradingEnvironment:
 
         try:
 
-            # TODO: In order to test, minimize the amount of equities being traded
             data_stream.subscribe_bars(self._handle_bar, "AAPL", "TSLA", "META", "AMZN", "MSFT", "NVDA", "GOOGL")
 
             stream_task: Task = asyncio.create_task(asyncio.to_thread(data_stream.run))
@@ -78,26 +77,34 @@ class AlpacaTradingEnvironment:
 
                 self._populate_portfolio(portfolio_list=portfolio_list)
 
-                state_data_dict: dict = await asyncio.to_thread(self._bar_queue.get) | self.get_market_features_dict(
+                market_features_dict: dict[str, Any] = self.alpaca_trading_account.get_market_features_dict(
                     portfolio_list=portfolio_list)
+
+                state_data_dict: dict = await asyncio.to_thread(self._bar_queue.get) | market_features_dict
 
                 self._execute_action_to_balance_portfolio(state_data_dict=state_data_dict)
 
-                random_action_order_side_action: OrderSide | str = self._get_random_order_side_action()
+                random_action: OrderSide | str = self._get_random_order_side_action()
 
-                if random_action_order_side_action != "HOLD":
+                if random_action != "HOLD":
 
-                    self.logger.info(f"Timestep Num: {current_time_step}")
+                    portfolio_equity: float = state_data_dict.get("equity")
+                    current_timestamp: datetime = state_data_dict.get("timestamp")
+                    portfolio_cash_available: float = state_data_dict.get("cash")
 
-                    portfolio_cash:float = state_data_dict.get("cash")
-                    portfolio_equity:float = state_data_dict.get("equity")
-
-                    self.logger.info(f"Portfolio Equity: {portfolio_equity:,2f} -> Cash On Hand: ${portfolio_cash:,.2f}")
+                    self.logger.info(
+                        f"Timestep: {current_time_step} -> Timestamp: {current_timestamp} -> Portfolio Equity: {portfolio_equity:,2f} -> Portfolio Cash Available: ${portfolio_cash_available:,.2f}")
                     self.logger.info("=" * 150)
 
+                    self._trading_csv_writer.append_row_to_csv(
+                        timestep=current_time_step,
+                        timestamp=current_timestamp,
+                        portfolio_equity=portfolio_equity,
+                        portfolio_cash_available=portfolio_cash_available,
+                    )
 
                 else:
-                    self.logger.info(f"Action Selected -> {random_action_order_side_action}")
+                    self.logger.info(f"Action Selected -> {random_action}")
                     continue
 
                 random_quantity_dict: dict[
@@ -127,9 +134,6 @@ class AlpacaTradingEnvironment:
 
         except Exception as e:
             self.logger.error(f"Exception Thrown: {e}")
-
-    def _get_random_order_side_action(self) -> OrderSide | str:
-        return random.choice(self._action_space)
 
     def _get_random_quantity_per_symbol_dict(self, state_data_dict: dict[str, Any], portfolio_list: list, ) -> dict[
         str, tuple[int, float, OrderSide]]:
@@ -249,7 +253,7 @@ class AlpacaTradingEnvironment:
                     )
 
                     self.logger.info(
-                        f"Successful {market_order.side.name} {market_order.qty} share(s) of {market_order.symbol}")
+                        f"Successful {market_order.side.name} {market_order.qty} share(s) of {market_order.symbol} @ the average fill price of ${market_order.filled_avg_price:,.2f}")
 
         except Exception as e:
             self.logger.warning(f"Exception Thrown: {e}")
@@ -262,11 +266,12 @@ class AlpacaTradingEnvironment:
 
                 if isinstance(value, dict):
 
-                    ticker_quantity: int = int(value.get("quantity"))
-                    ticker_qty_available: int = int(value.get("qty_available"))
+                    stock_quantity: int = int(value.get("quantity"))
+                    stock_qty_available: int = int(value.get("qty_available"))
+                    stock_current_price: float = float(value.get("current_price"))
 
-                    if ticker_quantity < 0 or ticker_qty_available < 0:
-                        quantity_to_buy = abs(ticker_quantity)
+                    if stock_quantity < 0 or stock_qty_available < 0:
+                        quantity_to_buy = abs(stock_quantity)
 
                         market_order_request: MarketOrderRequest = MarketOrderRequest(
                             symbol=key,
@@ -281,61 +286,10 @@ class AlpacaTradingEnvironment:
                         )
 
                         self.logger.info(
-                            f"Successful {market_order.side.name} {market_order.qty} share(s) of {market_order.symbol}")
+                            f"Successful {market_order.side.name} {market_order.qty} share(s) of {market_order.symbol} @ ${stock_current_price:,.2f}")
 
         except Exception as e:
             self.logger.warning(f"Exception Thrown: {e}")
 
-    def _get_ticker_data_dict(self, portfolio_list: list) -> dict[str, dict[str, Any]]:
-
-        ticker_data_dict: dict[str, dict[str, Any]] = {}
-
-        for index, position in enumerate(portfolio_list):
-            data_dict: dict[str, float] = {
-                "quantity": position.qty,
-                "qty_available": position.qty_available,
-                "cost_basis": position.cost_basis,
-                "current_price": position.current_price,
-                "change_today": position.change_today,
-            }
-
-            ticker_data_dict[position.symbol] = data_dict
-
-        return ticker_data_dict
-
-    def _get_account_data_dict(self) -> dict[str, float]:
-        try:
-
-            headers_dict: dict[str, str] = {
-                "accept": "application/json",
-                "APCA-API-KEY-ID": self._api_key,
-                "APCA-API-SECRET-KEY": self._api_secret_key
-            }
-
-            response: Response = requests.get(Constants.ALPACA_ACCOUNT_URL, headers=headers_dict)
-            response_dict: dict[str, Any] = response.json()
-
-            cash_float: float = float(response_dict["cash"])
-            equity_float: float = float(response_dict["equity"])
-
-            account_data_dict: dict[str, float] = {
-                "cash": cash_float,
-                "equity": equity_float,
-            }
-
-            return account_data_dict
-
-
-        except Exception as e:
-            self.logger.error(f"Exception thrown: {e}")
-
-
-
-    def get_market_features_dict(self, portfolio_list: list) -> dict[str, Any]:
-
-        account_data_dict: dict[str, Any] = self._get_account_data_dict()
-        ticker_data_dict: dict[str, dict[str, Any]] = self._get_ticker_data_dict(portfolio_list=portfolio_list)
-        market_features_dict: dict[str, Any] = account_data_dict | ticker_data_dict
-
-        return market_features_dict
-
+    def _get_random_order_side_action(self) -> OrderSide | str:
+        return random.choice(self._action_space)
