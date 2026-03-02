@@ -11,8 +11,8 @@ from utils.constants import Constants
 class AlpacaTradingAccount:
 
     def __init__(self) -> None:
-        self._api_key: str = settings.api_key
-        self._api_secret_key: str = settings.api_secret_key
+        self._api_key_random: str = settings.api_key_random
+        self._api_secret_key_random: str = settings.api_secret_key_random
         self.logger = AppLogger.get_logger(self.__class__.__name__)
 
     def get_market_features_dict(self, portfolio_list: list) -> dict[str, Any]:
@@ -28,8 +28,8 @@ class AlpacaTradingAccount:
 
             headers_dict: dict[str, str] = {
                 "accept": "application/json",
-                "APCA-API-KEY-ID": self._api_key,
-                "APCA-API-SECRET-KEY": self._api_secret_key
+                "APCA-API-KEY-ID": self._api_key_random,
+                "APCA-API-SECRET-KEY": self._api_secret_key_random
             }
 
             response: Response = requests.get(Constants.ALPACA_ACCOUNT_URL, headers=headers_dict)
