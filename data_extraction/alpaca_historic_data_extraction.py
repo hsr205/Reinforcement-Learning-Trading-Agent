@@ -20,12 +20,12 @@ from utils.constants import Constants
 class AlpacaHistoricDataExtraction:
 
     def __init__(self) -> None:
-        self._api_key: str = settings.api_key
-        self._api_secret_key: str = settings.api_secret_key
+        self._api_key_random: str = settings.api_key_random
+        self._api_secret_key_random: str = settings.api_secret_key_random
         self._eastern_timezone: ZoneInfo = ZoneInfo("America/New_York")
         self._export_director_path: Path = Path("historical_stock_data/")
-        self._stock_historical_data_client: StockHistoricalDataClient = StockHistoricalDataClient(self._api_key,
-                                                                                                  self._api_secret_key)
+        self._stock_historical_data_client: StockHistoricalDataClient = StockHistoricalDataClient(self._api_key_random,
+                                                                                                  self._api_secret_key_random)
         self.logger = AppLogger.get_logger(self.__class__.__name__)
 
     def export_historical_stock_data(self, year_of_data_to_collect: int = 2025) -> None:
