@@ -28,16 +28,17 @@ class AlpacaTradingEnvironment:
     alpaca_trading_account: AlpacaTradingAccount = AlpacaTradingAccount()
 
     def __init__(self) -> None:
-        self._api_key: str = settings.api_key
+        self._api_key_random: str = settings.api_key_random
         self._bar_queue: queue.Queue[dict] = queue.Queue()
         self._bar_history: deque[dict] = deque(maxlen=5000)
         self._latest_bar_dict: dict[str, Any] | None = None
-        self._api_secret_key: str = settings.api_secret_key
         self._action_space: list[str] = Constants.ACTIONS_LIST
         self._first_bar_event: asyncio.Event = asyncio.Event()
         self._close_of_market_time: time = time(16, 0)
+        self._api_secret_key_random: str = settings.api_secret_key_random
         self._trading_csv_writer: TradingActivityCsvWriter = TradingActivityCsvWriter(_base_dir=Path.cwd())
-        self._trading_client: TradingClient = TradingClient(self._api_key, self._api_secret_key, paper=True)
+        self._trading_client: TradingClient = TradingClient(api_key=self._api_key_random,
+                                                            secret_key=self._api_secret_key_random, paper=True)
         self.logger = AppLogger.get_logger(self.__class__.__name__)
 
     async def _handle_bar(self, data) -> None:
@@ -59,7 +60,8 @@ class AlpacaTradingEnvironment:
 
     async def initialize_trading_environment(self) -> None:
 
-        data_stream: StockDataStream = StockDataStream(api_key=self._api_key, secret_key=self._api_secret_key)
+        data_stream: StockDataStream = StockDataStream(api_key=self._api_key_random,
+                                                       secret_key=self._api_secret_key_random)
         self.logger.info("=" * 100)
         self.logger.info("Initializing Trading Environment")
 
