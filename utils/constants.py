@@ -13,3 +13,4 @@ class Constants:
     ACTIONS_LIST: list[OrderSide | str] = [OrderSide.BUY, OrderSide.SELL, "HOLD"]
 
     TICKER_SYMBOL_LIST: list[str] = ["TSLA", "AAPL", "META", "AMZN", "MSFT", "NVDA", "GOOGL"]
+    CSV_OUTPUT_COLUMNS_LIST: list[str] = ["Timestep", "Timestamp", "Portfolio Equity", "Portfolio Cash Available"] + TICKER_SYMBOL_LIST
