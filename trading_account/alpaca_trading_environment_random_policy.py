@@ -79,8 +79,6 @@ class AlpacaTradingEnvironmentRandomPolicy:
 
                 state_data_dict: dict = await asyncio.to_thread(self._bar_queue.get) | market_features_dict
 
-                self._execute_action_to_balance_portfolio(state_data_dict=state_data_dict)
-
                 random_action: OrderSide | str = self._get_random_order_side_action()
 
                 if random_action != "HOLD":
@@ -205,7 +203,7 @@ class AlpacaTradingEnvironmentRandomPolicy:
                 stock_purchase_price: float = float(ticker_symbol_tuple[1])
                 stock_action: OrderSide = ticker_symbol_tuple[2]
 
-                if stock_quantity <= 0:
+                if stock_quantity <= 0 and stock_action == OrderSide.SELL:
                     continue
 
                 market_order_request: MarketOrderRequest = MarketOrderRequest(
@@ -253,38 +251,6 @@ class AlpacaTradingEnvironmentRandomPolicy:
 
                     self.logger.info(
                         f"Successful {market_order.side.name} {market_order.qty} share(s) of {market_order.symbol} @ the average fill price of ${market_order.filled_avg_price:,.2f}")
-
-        except Exception as e:
-            self.logger.warning(f"Exception Thrown: {e}")
-
-    def _execute_action_to_balance_portfolio(self, state_data_dict: dict) -> None:
-
-        try:
-
-            self.logger.info("Balancing Portfolio")
-
-            ticker_symbol_list = Constants.TICKER_SYMBOL_LIST
-
-            missing_ticker_symbols_set:set[str] = set(ticker_symbol_list) - set(state_data_dict.keys())
-
-            if missing_ticker_symbols_set:
-
-                for ticker_symbol in missing_ticker_symbols_set:
-
-                        market_order_request: MarketOrderRequest = MarketOrderRequest(
-                            symbol=ticker_symbol,
-                            qty=1,
-                            side=OrderSide.BUY,
-                            order_type=OrderType.MARKET,
-                            time_in_force=TimeInForce.DAY
-                        )
-
-                        market_order: Order = self._trading_client.submit_order(
-                            order_data=market_order_request
-                        )
-
-                        self.logger.info(
-                            f"Successful {market_order.side.name} {market_order.qty} share(s) of {market_order.symbol}")
 
         except Exception as e:
             self.logger.warning(f"Exception Thrown: {e}")
