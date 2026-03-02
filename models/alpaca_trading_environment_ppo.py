@@ -16,7 +16,7 @@ from utils.constants import Constants
 from utils.trading_activity_csv_writer import TradingActivityCsvWriter
 
 
-class AlpacaTradingEnvironmentProximalPolicyOptimization:
+class AlpacaTradingEnvironmentPPO:
     alpaca_trading_account: AlpacaTradingAccount = AlpacaTradingAccount()
 
     def __init__(self) -> None:
@@ -33,6 +33,9 @@ class AlpacaTradingEnvironmentProximalPolicyOptimization:
         self._trading_client: TradingClient = TradingClient(api_key=self._api_key_ppo,
                                                             secret_key=self._api_secret_key_ppo, paper=True)
         self.logger = AppLogger.get_logger(self.__class__.__name__)
+
+    async def initialize_trading_environment_ppo(self) -> None:
+        pass
 
     def _get_processing_device(self) -> device:
 
