@@ -2,7 +2,7 @@ import asyncio
 from logging import Logger
 
 from logger.logger import AppLogger
-from trading_account.alpaca_trading_environment import AlpacaTradingEnvironment
+from trading_account.alpaca_trading_environment_random_policy import AlpacaTradingEnvironmentRandomPolicy
 
 
 async def main() -> int:
@@ -10,9 +10,9 @@ async def main() -> int:
 
     try:
 
-        alpaca_trading_env: AlpacaTradingEnvironment = AlpacaTradingEnvironment()
+        alpaca_trading_env_random_policy: AlpacaTradingEnvironmentRandomPolicy = AlpacaTradingEnvironmentRandomPolicy()
 
-        await alpaca_trading_env.initialize_trading_environment()
+        await alpaca_trading_env_random_policy.initialize_trading_environment_random_policy()
 
 
     except Exception as e:
