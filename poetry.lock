@@ -6321,4 +6321,4 @@ yarl = "*"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.14"
-content-hash = "e44ad389d2cd347549f457edb8f04ddef785ad28ca7be1daf7fe5970dbf9282a"
+content-hash = "c2af199d0b857ecd9b806fa0f9752958b4b1d20808e7c8136784d7344a4e2394"
