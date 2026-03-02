@@ -24,8 +24,8 @@ class TradingActivityCsvWriter:
 
         current_datetime: datetime = datetime.now()
 
-        date_directory_name: str = current_datetime.strftime("%y-%m-%d")
-        file_name: str = current_datetime.strftime("trading_activity_%y_%m_%d_%H_%M_%S.csv")
+        date_directory_name: str = current_datetime.strftime("%Y-%m-%d")
+        file_name: str = current_datetime.strftime("trading_activity_%Y_%m_%d_%H_%M_%S.csv")
 
         logs_directory: Path = self._base_dir / "logs" / "trading_activity" / date_directory_name
         logs_directory.mkdir(parents=True, exist_ok=True)
