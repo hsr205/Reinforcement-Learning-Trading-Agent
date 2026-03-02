@@ -22,8 +22,8 @@ from trading_account.alpaca_trading_account import AlpacaTradingAccount
 from utils.constants import Constants
 from utils.trading_activity_csv_writer import TradingActivityCsvWriter
 
-
-class AlpacaTradingEnvironment:
+# TODO: Consider moving some of the methods in this class to a helper class
+class AlpacaTradingEnvironmentRandomPolicy:
     ObsType: TypeVar = TypeVar("ObsType")
     alpaca_trading_account: AlpacaTradingAccount = AlpacaTradingAccount()
 
@@ -58,7 +58,7 @@ class AlpacaTradingEnvironment:
 
         # return observation, reward_tensor, terminated, truncated, _
 
-    async def initialize_trading_environment(self) -> None:
+    async def initialize_trading_environment_random_policy(self) -> None:
 
         data_stream: StockDataStream = StockDataStream(api_key=self._api_key_random,
                                                        secret_key=self._api_secret_key_random)
