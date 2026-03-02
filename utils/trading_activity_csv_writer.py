@@ -36,13 +36,13 @@ class TradingActivityCsvWriter:
                           portfolio_cash_available: float, market_features_dict: dict[str, Any]) -> None:
         csv_path: Path = self._ensure_directory_creation(logs_directory_path=logs_directory_path)
 
-        apple_stock_quantity: float | None = market_features_dict.get("AAPL").get("quantity", 0.0)
-        amazon_stock_quantity: float | None = market_features_dict.get("AMZN").get("quantity", 0.0)
-        google_stock_quantity: float | None = market_features_dict.get("GOOGL").get("quantity", 0.0)
-        meta_stock_quantity: float | None = market_features_dict.get("META").get("quantity", 0.0)
-        nvidia_stock_quantity: float | None = market_features_dict.get("NVDA").get("quantity", 0.0)
-        microsoft_stock_quantity: float | None = market_features_dict.get("MSFT").get("quantity", 0.0)
-        tesla_stock_quantity: float | None = market_features_dict.get("TSLA").get("quantity", 0.0)
+        apple_stock_quantity: float = market_features_dict.get("AAPL", {}).get("quantity", 0.0)
+        amazon_stock_quantity: float = market_features_dict.get("AMZN", {}).get("quantity", 0.0)
+        google_stock_quantity: float = market_features_dict.get("GOOGL", {}).get("quantity", 0.0)
+        meta_stock_quantity: float = market_features_dict.get("META", {}).get("quantity", 0.0)
+        nvidia_stock_quantity: float = market_features_dict.get("NVDA", {}).get("quantity", 0.0)
+        microsoft_stock_quantity: float = market_features_dict.get("MSFT", {}).get("quantity", 0.0)
+        tesla_stock_quantity: float = market_features_dict.get("TSLA", {}).get("quantity", 0.0)
 
         with csv_path.open(mode="a", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
