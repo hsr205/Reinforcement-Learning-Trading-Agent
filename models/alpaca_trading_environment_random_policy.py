@@ -229,8 +229,6 @@ class AlpacaTradingEnvironmentRandomPolicy:
 
         return False
 
-
-
     def execute_random_action(self, random_quantity_dict: dict[str, tuple[int, float, OrderSide]]) -> None:
 
         try:
