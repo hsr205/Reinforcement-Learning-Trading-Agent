@@ -34,7 +34,7 @@ class TradingActivityCsvWriter:
 
         return self._csv_path
 
-    def _get_positions_dict(self, all_positions_list: list[Position]) -> dict[str, float]:
+    def _get_positions_dict(self, all_positions_list: list[Position]) -> dict[str, int]:
 
         positions_dict: dict[str, float] = {}
 
@@ -43,7 +43,7 @@ class TradingActivityCsvWriter:
             ticker_symbol_str: str = position_obj.symbol
 
             if ticker_symbol_str not in positions_dict:
-                positions_dict[ticker_symbol_str] = float(position_obj.qty)
+                positions_dict[ticker_symbol_str] = int(position_obj.qty)
 
             else:
 
@@ -56,15 +56,15 @@ class TradingActivityCsvWriter:
                           portfolio_cash_available: float, all_positions_list: list[Position]) -> None:
         csv_path: Path = self._ensure_directory_creation(logs_directory_path=logs_directory_path)
 
-        positions_dict: dict[str, float] = self._get_positions_dict(all_positions_list=all_positions_list)
+        positions_dict: dict[str, int] = self._get_positions_dict(all_positions_list=all_positions_list)
 
-        apple_stock_quantity: float = positions_dict.get("AAPL", {})
-        amazon_stock_quantity: float = positions_dict.get("AMZN", {})
-        google_stock_quantity: float = positions_dict.get("GOOGL", {})
-        meta_stock_quantity: float = positions_dict.get("META", {})
-        nvidia_stock_quantity: float = positions_dict.get("NVDA", {})
-        microsoft_stock_quantity: float = positions_dict.get("MSFT", {})
-        tesla_stock_quantity: float = positions_dict.get("TSLA", {})
+        apple_stock_quantity: float = positions_dict.get("AAPL", 0)
+        amazon_stock_quantity: float = positions_dict.get("AMZN", 0)
+        google_stock_quantity: float = positions_dict.get("GOOGL", 0)
+        meta_stock_quantity: float = positions_dict.get("META", 0)
+        nvidia_stock_quantity: float = positions_dict.get("NVDA", 0)
+        microsoft_stock_quantity: float = positions_dict.get("MSFT", 0)
+        tesla_stock_quantity: float = positions_dict.get("TSLA", 0)
 
         with csv_path.open(mode="a", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
