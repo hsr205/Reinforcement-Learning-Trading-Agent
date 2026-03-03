@@ -133,56 +133,103 @@ class AlpacaTradingEnvironmentRandomPolicy:
         random_quantity_dict: dict[str, tuple[int, float, OrderSide]] = {}
 
         for stock_position in all_positions_list:
-
-            ticker_symbol_str: str = stock_position.symbol
-
-            stock_quantity: int = int(stock_position.qty_available)
-            stock_price: float = float(stock_position.current_price)
-
             order_side: OrderSide = random.choice(Constants.ORDER_SIDE_ACTIONS_LIST)
-
             is_buy_side: bool = order_side == OrderSide.BUY
             is_sell_side: bool = order_side == OrderSide.SELL
 
             if is_sell_side:
-                max_valid_quantity: int = stock_quantity
-
-                if max_valid_quantity <= 0:
-                    random_quantity_dict[ticker_symbol_str] = (0, stock_price, order_side)
-                    continue
-
-                random_quantity: int = math.ceil(random.randint(1, max_valid_quantity) / 2)
-                random_quantity_dict[ticker_symbol_str] = (random_quantity, stock_price, order_side)
-                continue
-
-            if is_buy_side:
-                max_valid_quantity = int(current_cash_t // stock_price)
-
-                if max_valid_quantity <= 0:
-                    random_quantity_dict[ticker_symbol_str] = (0, stock_price, order_side)
-                    transaction_cost: float = stock_price * max_valid_quantity
-                    self.logger.warning(
-                        f"Invalid {order_side.name} of {stock_quantity:,} share(s) of {ticker_symbol_str}:"
-                    )
-                    self.logger.warning(
-                        f"Cash On Hand -> ${current_cash_t:,.2f}, Current Stock Price -> ${stock_price:,.2f}, Transaction Cost -> ${transaction_cost:,.2f}")
-                    continue
-
-                random_quantity = math.ceil(random.randint(1, max_valid_quantity) / 2)
-
-                transaction_cost: float = stock_price * random_quantity
-                if transaction_cost > current_cash_t:
-                    random_quantity_dict[ticker_symbol_str] = (0, stock_price, order_side)
-                    self.logger.warning(
-                        f"Invalid {order_side.name} of {random_quantity:,} share(s) 0f {ticker_symbol_str}:"
-                    )
-                    self.logger.warning(
-                        f"Quantity -> {random_quantity}, Transaction Cost ->${transaction_cost:,.2f} exceeds Cash On Hand ->${current_cash_t:,.2f}")
-                    continue
-
-                random_quantity_dict[ticker_symbol_str] = (random_quantity, stock_price, order_side)
+                self._is_sell_side_order(order_side=order_side, random_quantity_dict=random_quantity_dict,
+                                         stock_position=stock_position)
+            elif is_buy_side:
+                self._is_buy_side_order(order_side=order_side, random_quantity_dict=random_quantity_dict,
+                                        stock_position=stock_position, current_cash_t=current_cash_t)
 
         return random_quantity_dict
+
+    def _is_sell_side_order(self, order_side: OrderSide, random_quantity_dict: dict[str, tuple[int, float, OrderSide]],
+                            stock_position: Position) -> None:
+
+        ticker_symbol_str: str = stock_position.symbol
+        stock_quantity: int = int(stock_position.qty_available)
+        stock_price: float = float(stock_position.current_price)
+
+        max_valid_quantity: int = stock_quantity
+
+        if max_valid_quantity <= 0:
+            random_quantity_dict[ticker_symbol_str] = (0, stock_price, order_side)
+            return
+
+        random_quantity: int = math.ceil(random.randint(1, max_valid_quantity) / 2)
+        random_quantity_dict[ticker_symbol_str] = (random_quantity, stock_price, order_side)
+        return
+
+    def _is_buy_side_order(self, order_side: OrderSide, random_quantity_dict: dict[str, tuple[int, float, OrderSide]],
+                           stock_position: Position, current_cash_t: float) -> None:
+
+        ticker_symbol_str: str = stock_position.symbol
+        stock_price: float = float(stock_position.current_price)
+
+        max_valid_quantity = int(current_cash_t // stock_price)
+
+        if self._is_max_quantity_less_or_equal_to_zero(order_side=order_side,
+                                                       random_quantity_dict=random_quantity_dict,
+                                                       stock_position=stock_position,
+                                                       current_cash_t=current_cash_t,
+                                                       max_valid_quantity=max_valid_quantity):
+            return
+
+        random_quantity = math.ceil(random.randint(1, max_valid_quantity) / 2)
+
+        if self._is_transaction_cost_greater_than_cash_available(order_side=order_side,
+                                                                 random_quantity_dict=random_quantity_dict,
+                                                                 stock_position=stock_position,
+                                                                 current_cash_t=current_cash_t,
+                                                                 random_quantity=random_quantity):
+            return
+
+        random_quantity_dict[ticker_symbol_str] = (random_quantity, stock_price, order_side)
+
+    def _is_transaction_cost_greater_than_cash_available(self, order_side: OrderSide, random_quantity_dict: dict[
+        str, tuple[int, float, OrderSide]], stock_position: Position, current_cash_t: float,
+                                                         random_quantity: int) -> bool:
+
+        ticker_symbol_str: str = stock_position.symbol
+        stock_price: float = float(stock_position.current_price)
+
+        transaction_cost: float = stock_price * random_quantity
+        if transaction_cost > current_cash_t:
+            random_quantity_dict[ticker_symbol_str] = (0, stock_price, order_side)
+            self.logger.warning(
+                f"Invalid {order_side.name} of {random_quantity:,} share(s) of {ticker_symbol_str}:"
+            )
+            self.logger.warning(
+                f"Quantity -> {random_quantity}, Transaction Cost ->${transaction_cost:,.2f} exceeds Cash On Hand ->${current_cash_t:,.2f}")
+            return True
+
+        return False
+
+    # TODO: Review the logic see if this can be removed
+    def _is_max_quantity_less_or_equal_to_zero(self, order_side: OrderSide, random_quantity_dict: dict[
+        str, tuple[int, float, OrderSide]], stock_position: Position, current_cash_t: float,
+                                               max_valid_quantity: int) -> bool:
+
+        ticker_symbol_str: str = stock_position.symbol
+        stock_quantity: int = int(stock_position.qty_available)
+        stock_price: float = float(stock_position.current_price)
+
+        if max_valid_quantity <= 0:
+            random_quantity_dict[ticker_symbol_str] = (0, stock_price, order_side)
+            transaction_cost: float = stock_price * max_valid_quantity
+            self.logger.warning(
+                f"Invalid {order_side.name} of {stock_quantity:,} share(s) of {ticker_symbol_str}:"
+            )
+            self.logger.warning(
+                f"Cash On Hand -> ${current_cash_t:,.2f}, Current Stock Price -> ${stock_price:,.2f}, Transaction Cost -> ${transaction_cost:,.2f}")
+            return True
+
+        return False
+
+
 
     def execute_random_action(self, random_quantity_dict: dict[str, tuple[int, float, OrderSide]]) -> None:
 
