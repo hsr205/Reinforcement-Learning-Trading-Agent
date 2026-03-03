@@ -1,9 +1,11 @@
 import csv
 from dataclasses import dataclass
-from datetime import datetime, time
+from datetime import datetime
 from pathlib import Path
-from typing import Any
 
+from alpaca.trading import Position
+
+from logger.logger import AppLogger
 from utils.constants import Constants
 
 
@@ -11,6 +13,7 @@ from utils.constants import Constants
 class TradingActivityCsvWriter:
     _base_dir: Path
     _csv_path: Path | None = None
+    _logger = AppLogger.get_logger(__name__)
 
     def _ensure_directory_creation(self, logs_directory_path: Path) -> Path:
         if self._csv_path is not None:
@@ -26,23 +29,42 @@ class TradingActivityCsvWriter:
 
         with self._csv_path.open(mode="w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
-            columns_list:list[str] = Constants.CSV_OUTPUT_COLUMNS_LIST
+            columns_list: list[str] = Constants.CSV_OUTPUT_COLUMNS_LIST
             writer.writerow(columns_list)
 
         return self._csv_path
 
+    def _get_positions_dict(self, all_positions_list: list[Position]) -> dict[str, float]:
+
+        positions_dict: dict[str, float] = {}
+
+        for position_obj in all_positions_list:
+
+            ticker_symbol_str: str = position_obj.symbol
+
+            if ticker_symbol_str not in positions_dict:
+                positions_dict[ticker_symbol_str] = float(position_obj.qty)
+
+            else:
+
+                self._logger.error(f"Duplicate instance of {ticker_symbol_str} ticker in positions list")
+
+        return positions_dict
+
     def append_row_to_csv(self, *, logs_directory_path: Path, timestep: int, current_datetime: datetime,
                           portfolio_equity: float,
-                          portfolio_cash_available: float, market_features_dict: dict[str, Any]) -> None:
+                          portfolio_cash_available: float, all_positions_list: list[Position]) -> None:
         csv_path: Path = self._ensure_directory_creation(logs_directory_path=logs_directory_path)
 
-        apple_stock_quantity: float = market_features_dict.get("AAPL", {}).get("quantity", 0.0)
-        amazon_stock_quantity: float = market_features_dict.get("AMZN", {}).get("quantity", 0.0)
-        google_stock_quantity: float = market_features_dict.get("GOOGL", {}).get("quantity", 0.0)
-        meta_stock_quantity: float = market_features_dict.get("META", {}).get("quantity", 0.0)
-        nvidia_stock_quantity: float = market_features_dict.get("NVDA", {}).get("quantity", 0.0)
-        microsoft_stock_quantity: float = market_features_dict.get("MSFT", {}).get("quantity", 0.0)
-        tesla_stock_quantity: float = market_features_dict.get("TSLA", {}).get("quantity", 0.0)
+        positions_dict: dict[str, float] = self._get_positions_dict(all_positions_list=all_positions_list)
+
+        apple_stock_quantity: float = positions_dict.get("AAPL", {})
+        amazon_stock_quantity: float = positions_dict.get("AMZN", {})
+        google_stock_quantity: float = positions_dict.get("GOOGL", {})
+        meta_stock_quantity: float = positions_dict.get("META", {})
+        nvidia_stock_quantity: float = positions_dict.get("NVDA", {})
+        microsoft_stock_quantity: float = positions_dict.get("MSFT", {})
+        tesla_stock_quantity: float = positions_dict.get("TSLA", {})
 
         with csv_path.open(mode="a", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
