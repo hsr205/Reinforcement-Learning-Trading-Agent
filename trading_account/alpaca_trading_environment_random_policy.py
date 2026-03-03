@@ -1,4 +1,5 @@
 import asyncio
+import math
 import queue
 import random
 from asyncio import Task
@@ -86,17 +87,17 @@ class AlpacaTradingEnvironmentRandomPolicy:
 
                     portfolio_equity: float = state_data_dict.get("equity")
                     portfolio_cash_available: float = state_data_dict.get("cash")
-                    current_time: time = state_data_dict.get("timestamp").astimezone(
-                        ZoneInfo("America/New_York")).time()
+                    current_datetime: datetime = state_data_dict.get("timestamp").astimezone(
+                        ZoneInfo("America/New_York"))
 
                     self.logger.info(
-                        f"Timestep: {current_time_step} -> Timestamp: {current_time} -> Portfolio Equity: {portfolio_equity:,.2f} -> Portfolio Cash Available: ${portfolio_cash_available:,.2f}")
+                        f"Timestep: {current_time_step} -> Timestamp: {current_datetime.time()} -> Portfolio Equity: {portfolio_equity:,.2f} -> Portfolio Cash Available: ${portfolio_cash_available:,.2f}")
                     self.logger.info("=" * 150)
 
                     self._trading_csv_writer.append_row_to_csv(
                         logs_directory_path=self._logs_directory_path,
                         timestep=current_time_step,
-                        current_time=current_time,
+                        current_datetime=current_datetime,
                         portfolio_equity=portfolio_equity,
                         portfolio_cash_available=portfolio_cash_available,
                         market_features_dict=market_features_dict
@@ -155,7 +156,7 @@ class AlpacaTradingEnvironmentRandomPolicy:
                     random_quantity_dict[ticker_symbol_str] = (0, current_stock_price, order_side)
                     continue
 
-                random_quantity: int = random.randint(1, max_valid_quantity)
+                random_quantity: int = math.ceil(random.randint(1, max_valid_quantity) / 2)
                 random_quantity_dict[ticker_symbol_str] = (random_quantity, current_stock_price, order_side)
                 continue
 
@@ -172,7 +173,7 @@ class AlpacaTradingEnvironmentRandomPolicy:
                         f"Cash On Hand -> ${current_cash_t:,.2f}, Current Stock Price -> ${current_stock_price:,.2f}, Transaction Cost -> ${transaction_cost:,.2f}")
                     continue
 
-                random_quantity = random.randint(1, max_valid_quantity)
+                random_quantity = math.ceil(random.randint(1, max_valid_quantity) / 2)
 
                 transaction_cost: float = current_stock_price * random_quantity
                 if transaction_cost > current_cash_t:
