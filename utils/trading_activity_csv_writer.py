@@ -34,23 +34,6 @@ class TradingActivityCsvWriter:
 
         return self._csv_path
 
-    def _get_positions_dict(self, all_positions_list: list[Position]) -> dict[str, int]:
-
-        positions_dict: dict[str, int] = {}
-
-        for position_obj in all_positions_list:
-
-            ticker_symbol_str: str = position_obj.symbol
-
-            if ticker_symbol_str not in positions_dict:
-                positions_dict[ticker_symbol_str] = int(position_obj.qty)
-
-            else:
-
-                self._logger.error(f"Duplicate instance of {ticker_symbol_str} ticker in positions list")
-
-        return positions_dict
-
     def append_row_to_csv(self, *, logs_directory_path: Path, timestep: int, current_datetime: datetime,
                           portfolio_equity: float,
                           portfolio_cash_available: float, all_positions_list: list[Position]) -> None:
@@ -83,3 +66,20 @@ class TradingActivityCsvWriter:
                     f"{tesla_stock_quantity}",
                 ]
             )
+
+    def _get_positions_dict(self, all_positions_list: list[Position]) -> dict[str, int]:
+
+        positions_dict: dict[str, int] = {}
+
+        for position_obj in all_positions_list:
+
+            ticker_symbol_str: str = position_obj.symbol
+
+            if ticker_symbol_str not in positions_dict:
+                positions_dict[ticker_symbol_str] = int(position_obj.qty)
+
+            else:
+
+                self._logger.error(f"Duplicate instance of {ticker_symbol_str} ticker in positions list")
+
+        return positions_dict
