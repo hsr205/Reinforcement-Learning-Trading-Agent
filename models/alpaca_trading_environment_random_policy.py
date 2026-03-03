@@ -46,7 +46,6 @@ class AlpacaTradingEnvironmentRandomPolicy:
 
     # TODO: Move the following to a helper class
     async def _handle_bar(self, data) -> None:
-        data_bar: Bar = data
         bar_dict: dict = data.model_dump()
 
         # store latest + history if you want
