@@ -9,6 +9,7 @@ from typing import TypeVar
 from typing import Union
 from zoneinfo import ZoneInfo
 
+import numpy as np
 import torch
 from alpaca.common import RawData
 from alpaca.data import StockLatestQuoteRequest, Quote
@@ -98,7 +99,7 @@ class AlpacaTradingEnvironmentPPO:
                 account_dict = self._get_account_dict()
                 all_positions_list = self._trading_client.get_all_positions()
 
-                positions_list_of_dicts: list[dict[str, float | int]] = self._get_positions_list_of_dicts(
+                position_features_array: np.ndarray = self._get_position_features_array(
                     all_positions_list=all_positions_list, account_dict=account_dict)
 
                 if is_terminal:
@@ -116,6 +117,34 @@ class AlpacaTradingEnvironmentPPO:
             self.logger.error(f"Exception Thrown: {e}")
 
         # return observation, reward_tensor, is_terminal, truncated, _
+
+    def _get_position_features_array(self, all_positions_list: list[Position],
+                                     account_dict: dict[str, float]) -> np.ndarray:
+
+        ticker_features_list: list[str] = Constants.TICKER_FEATURES_LIST
+        positions_dict: dict[int, dict[str, float]] = self._get_positions_dict(
+            all_positions_list=all_positions_list, account_dict=account_dict)
+
+        all_matrix_rows: list[list[float]] = []
+
+        for ticker_id_num in Constants.TICKER_SYMBOL_TO_ID.values():
+            ticker_dict: dict[str, float] = positions_dict.get(ticker_id_num, {})
+
+            matrix_row_list: list[float] = []
+
+            for feature_str in ticker_features_list:
+                feature_value: float | Any = ticker_dict.get(feature_str, 0.0)
+                matrix_row_list.append(float(feature_value))
+
+            all_matrix_rows.append(matrix_row_list)
+
+        per_ticker_array: np.ndarray = np.array(all_matrix_rows, dtype=np.float32)
+
+        flat_observation_array: np.ndarray = per_ticker_array.reshape(-1)
+
+        self.logger.info(f"flat_observation_array = {flat_observation_array}")
+
+        return flat_observation_array
 
     def _balance_empty_portfolio(self, all_positions_list: list[Position], account_dict: dict[str, Any]) -> None:
 
@@ -157,13 +186,13 @@ class AlpacaTradingEnvironmentPPO:
         except Exception as e:
             self.logger.warning(f"Exception Thrown: {e}")
 
-    def _get_positions_list_of_dicts(self, all_positions_list: list[Position], account_dict: dict[str, float]) -> list[
-        dict[str, Any]]:
+    def _get_positions_dict(self, all_positions_list: list[Position], account_dict: dict[str, float]) -> dict[
+        int, dict[str, float]]:
 
-        positions_list_of_dicts: list[dict[str, float]] = []
+        positions_dict: dict[int, dict[str, float]] = {}
 
         self._populate_missing_ticker_entries(all_positions_list=all_positions_list, account_dict=account_dict,
-                                              positions_list_of_dicts=positions_list_of_dicts)
+                                              positions_dict=positions_dict)
 
         for position_obj in all_positions_list:
             ticker_symbol_str: str = position_obj.symbol
@@ -180,35 +209,26 @@ class AlpacaTradingEnvironmentPPO:
             cash_to_portfolio_value: float = cash / portfolio_value
             portfolio_weight: float = market_value / portfolio_value
             buying_power_to_portfolio_value: float = buying_power / portfolio_value
-            market_value_to_portfolio_value: float = market_value / portfolio_value
             cost_basis_to_portfolio_value: float = float(position_obj.cost_basis) / portfolio_value
             unrealized_pl_to_portfolio_value: float = float(position_obj.unrealized_pl) / portfolio_value
 
-            ticker_dict: dict[str, float | int] = {
-
-                "ticker_symbol_id": ticker_symbol_id,
+            ticker_dict: dict[str, float] = {
                 "qty_available": qty_available,
                 "portfolio_value": portfolio_value,
                 "portfolio_weight": portfolio_weight,
                 "cash_to_portfolio_value": cash_to_portfolio_value,
                 "cost_basis_to_portfolio_value": cost_basis_to_portfolio_value,
-                "market_value_to_portfolio_value": market_value_to_portfolio_value,
                 "buying_power_to_portfolio_value": buying_power_to_portfolio_value,
                 "unrealized_pl_to_portfolio_value": unrealized_pl_to_portfolio_value,
-
                 "change_today": float(position_obj.change_today),
             }
 
-            positions_list_of_dicts.append(ticker_dict)
+            positions_dict[ticker_symbol_id] = ticker_dict
 
-        for position_obj in positions_list_of_dicts:
-            self.logger.info(f"position_obj = {position_obj}")
-            self.logger.info("=" * 100)
-
-        return positions_list_of_dicts
+        return positions_dict
 
     def _populate_missing_ticker_entries(self, all_positions_list: list[Position], account_dict: dict[str, float],
-                                         positions_list_of_dicts: list[dict[str, float]]) -> None:
+                                         positions_dict: dict[int, dict[str, float]]) -> None:
 
         full_ticker_symbol_list: list[str] = Constants.TICKER_SYMBOL_LIST
         positions_str_list: list[str] = self._get_positions_str_list(all_positions_list=all_positions_list)
@@ -225,21 +245,19 @@ class AlpacaTradingEnvironmentPPO:
                 cash_to_portfolio_value: float = cash / portfolio_value
                 buying_power_to_portfolio_value: float = buying_power / portfolio_value
 
-                ticker_dict = {
-                    "ticker_symbol_id": ticker_symbol_id,
+                ticker_dict: dict[str, float] = {
                     "qty_available": 0.0,
                     "position_value": 0.0,
                     "portfolio_weight": 0.0,
                     "portfolio_value": portfolio_value,
                     "cost_basis_to_portfolio_value": 0.0,
-                    "market_value_to_portfolio_value": 0.0,
                     "unrealized_pl_to_portfolio_value": 0.0,
                     "cash_to_portfolio_value": cash_to_portfolio_value,
                     "buying_power_to_portfolio_value": buying_power_to_portfolio_value,
                     "change_today": 0.0,
                 }
 
-                positions_list_of_dicts.append(ticker_dict)
+                positions_dict[ticker_symbol_id] = ticker_dict
 
     def _get_account_dict(self) -> dict[str, Any]:
 
