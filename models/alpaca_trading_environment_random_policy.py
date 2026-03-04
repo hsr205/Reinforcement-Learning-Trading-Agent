@@ -10,7 +10,6 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from alpaca.data.live import StockDataStream
-from alpaca.data.models.bars import Bar
 from alpaca.trading import Position
 from alpaca.trading.client import TradingClient
 from alpaca.trading.enums import OrderSide, TimeInForce, OrderType
