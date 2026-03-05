@@ -23,7 +23,6 @@ from utils.trading_activity_csv_writer import TradingActivityCsvWriter
 
 # TODO: Use unsloth
 class AlpacaTradingEnvironmentPPO:
-    ObsType: TypeVar = TypeVar("ObsType")
 
     def __init__(self) -> None:
 
@@ -58,11 +57,7 @@ class AlpacaTradingEnvironmentPPO:
 
         self._bar_queue.put(bar_dict)
 
-    async def initialize_trading_environment_ppo(self) -> None:
-        pass
-
-    # async def step(self, action_str: str) -> tuple[Tensor, float, bool, bool, dict[str, Any]]:
-    async def step(self) -> None:
+    async def step(self, action) -> tuple[Tensor, float, bool]:
 
         data_stream: StockDataStream = StockDataStream(api_key=self._api_key_ppo,
                                                        secret_key=self._api_secret_key_ppo)
@@ -75,52 +70,37 @@ class AlpacaTradingEnvironmentPPO:
             stream_task: Task = asyncio.create_task(asyncio.to_thread(data_stream.run))
 
             current_time_step: int = 1
-            reward_list: list[float] = []
-
             current_time_est: time = datetime.now().astimezone(ZoneInfo("America/New_York")).time()
             is_terminal: bool = current_time_est >= self._close_of_market_time
 
-            while True:
+            self._alpaca_trading_account.balance_empty_portfolio()
 
-                self._alpaca_trading_account.balance_empty_portfolio()
+            account_dict_t: dict[str, float] = self._alpaca_trading_account.get_account_dict()
+            all_positions_list_t = self._trading_client.get_all_positions()
 
-                account_dict_t: dict[str, float] = self._alpaca_trading_account.get_account_dict()
-                all_positions_list_t = self._trading_client.get_all_positions()
+            observation_tensor_t, per_ticker_array_t = self._alpaca_trading_account.get_ticker_feature_collections(
+                all_positions_list=all_positions_list_t, account_dict=account_dict_t)
 
-                observation_tensor_t, per_ticker_array_t = self._alpaca_trading_account.get_ticker_feature_collections(
-                    all_positions_list=all_positions_list_t, account_dict=account_dict_t)
+            self._execute_trades(action=action)
 
-                self._execute_trades(action="")
+            account_dict_t_1 = self._alpaca_trading_account.get_account_dict()
+            all_positions_list_t_1 = self._trading_client.get_all_positions()
 
-                account_dict_t_1 = self._alpaca_trading_account.get_account_dict()
-                all_positions_list_t_1 = self._trading_client.get_all_positions()
+            observation_tensor_t_1, per_ticker_array_t_1 = self._alpaca_trading_account.get_ticker_feature_collections(
+                all_positions_list=all_positions_list_t_1, account_dict=account_dict_t_1)
 
-                observation_tensor_t_1, per_ticker_array_t_1 = self._alpaca_trading_account.get_ticker_feature_collections(
-                    all_positions_list=all_positions_list_t_1, account_dict=account_dict_t_1)
+            reward: float = self._get_reward(account_dict_t=account_dict_t,
+                                             account_dict_t_1=account_dict_t_1,
+                                             per_ticker_array_t=per_ticker_array_t,
+                                             per_ticker_array_t_1=per_ticker_array_t_1)
 
-                if not reward_list:
-                    reward_list.append(0.0)
-
-                reward: float = self._get_reward(account_dict_t=account_dict_t,
-                                                 account_dict_t_1=account_dict_t_1,
-                                                 per_ticker_array_t=per_ticker_array_t,
-                                                 per_ticker_array_t_1=per_ticker_array_t_1)
-
-                self.logger.info(f"reward = {reward}")
-
-                if is_terminal:
-                    self.logger.info(f"Broken at timestep: {current_time_step}")
-                    self.logger.info("=" * 200)
-                    # return observation_array, reward, is_terminal, truncated
-                    break
-
-                current_time_step += 1
-
-                exit()
+            self.logger.info(f"reward = {reward}")
 
             await stream_task
 
-        # return observation_array, reward, is_terminal, truncated
+            current_time_step += 1
+
+            return observation_tensor_t_1, reward, is_terminal
 
         except Exception as e:
             self.logger.error(f"Exception Thrown: {e}")
