@@ -18,14 +18,12 @@ from alpaca.trading.requests import MarketOrderRequest
 
 from config.config import settings
 from logger.logger import AppLogger
-from trading_account.alpaca_trading_account import AlpacaTradingAccount
 from utils.constants import Constants
 from utils.trading_activity_csv_writer import TradingActivityCsvWriter
 
 
 # TODO: Consider moving some of the methods in this class to a helper class
 class AlpacaTradingEnvironmentRandomPolicy:
-    alpaca_trading_account: AlpacaTradingAccount = AlpacaTradingAccount()
 
     def __init__(self) -> None:
         self._base_directory: Path = Path.cwd()
