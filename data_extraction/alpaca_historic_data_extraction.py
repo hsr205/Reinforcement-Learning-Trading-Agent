@@ -28,63 +28,85 @@ class AlpacaHistoricDataExtraction:
                                                                                                   self._api_secret_key_random)
         self.logger = AppLogger.get_logger(self.__class__.__name__)
 
-    def export_historical_stock_data(self, year_of_data_to_collect: int = 2025) -> None:
+    def export_historical_stock_data(self, list_of_years_to_collect: list[int]) -> None:
         try:
+
+            start_year_str, end_year_str = self._get_year_strs(list_of_years_to_collect=list_of_years_to_collect)
 
             for ticker_symbol in tqdm(Constants.TICKER_SYMBOL_LIST, desc="Extracting Historical Stock Data"):
 
                 file_name_str: str = ""
                 stock_dataframe_list: list[pd.DataFrame] = []
 
-                for month_num in tqdm(range(1, 13), desc="Extracting Specific Stock Data"):
-                    days_in_month_num: int = self._get_days_in_month(year=year_of_data_to_collect, month=month_num)
+                for year_num in list_of_years_to_collect:
 
-                    start_datetime: datetime = datetime(
-                        year=year_of_data_to_collect,
-                        month=month_num,
-                        day=1,
-                        hour=0,
-                        minute=0,
-                        second=0,
-                        tzinfo=self._eastern_timezone
-                    )
+                    for month_num in tqdm(range(1, 13), desc="Extracting Specific Stock Data"):
+                        days_in_month_num: int = self._get_days_in_month(year=year_num, month=month_num)
 
-                    end_datetime: datetime = datetime(
-                        year=year_of_data_to_collect,
-                        month=month_num,
-                        day=days_in_month_num,
-                        hour=23,
-                        minute=59,
-                        second=59,
-                        tzinfo=self._eastern_timezone
-                    )
+                        start_datetime: datetime = datetime(
+                            year=year_num,
+                            month=month_num,
+                            day=1,
+                            hour=0,
+                            minute=0,
+                            second=0,
+                            tzinfo=self._eastern_timezone
+                        )
 
-                    stock_bars_request: StockBarsRequest = StockBarsRequest(
-                        timeframe=TimeFrame.Minute,
-                        symbol_or_symbols=ticker_symbol,
-                        start=start_datetime,
-                        end=end_datetime
-                    )
+                        end_datetime: datetime = datetime(
+                            year=year_num,
+                            month=month_num,
+                            day=days_in_month_num,
+                            hour=23,
+                            minute=59,
+                            second=59,
+                            tzinfo=self._eastern_timezone
+                        )
 
-                    bars_set: BarSet = self._stock_historical_data_client.get_stock_bars(stock_bars_request)
+                        stock_bars_request: StockBarsRequest = StockBarsRequest(
+                            timeframe=TimeFrame.Minute,
+                            symbol_or_symbols=ticker_symbol,
+                            start=start_datetime,
+                            end=end_datetime
+                        )
 
-                    self._clean_stock_dataframe(bars_set=bars_set, stock_dataframe_list=stock_dataframe_list,
-                                                ticker_symbol=ticker_symbol)
+                        bars_set: BarSet = self._stock_historical_data_client.get_stock_bars(stock_bars_request)
 
-                    file_name_str = self._get_file_name_str(ticker_symbol=ticker_symbol)
+                        self._clean_stock_dataframe(bars_set=bars_set, stock_dataframe_list=stock_dataframe_list,
+                                                    ticker_symbol=ticker_symbol)
 
-                result_dataframe: pd.DataFrame = pd.concat(stock_dataframe_list)
+                        file_name_str = self._get_file_name_str(ticker_symbol=ticker_symbol,
+                                                                start_year_str=start_year_str,
+                                                                end_year_str=end_year_str)
 
-                export_file_path: Path = self._get_export_file_path(file_name_str=file_name_str)
+                    result_dataframe: pd.DataFrame = pd.concat(stock_dataframe_list)
 
-                self.logger.info(f"Exporting data to: {export_file_path}")
+                    export_file_path: Path = self._get_export_file_path(file_name_str=file_name_str)
 
-                result_dataframe.to_csv(path_or_buf=export_file_path)
+                    self.logger.info(f"Concatenating data to: {export_file_path}")
 
-                self.logger.info(f"Successfully exported data to: {export_file_path}")
+                    result_dataframe.to_csv(path_or_buf=export_file_path)
+
+                    self.logger.info(f"Successfully concatenated data to: {export_file_path}")
 
         except Exception as e:
             self.logger.error(f"Exception Thrown: {e}")
+
+    def _get_year_strs(self, list_of_years_to_collect: list[int]) -> tuple[str, str]:
+
+        start_year_str: str = ""
+        end_year_str: str = ""
+
+        if len(list_of_years_to_collect) == 1:
+            start_year_str = str(list_of_years_to_collect[0])
+            end_year_str = str(list_of_years_to_collect[0])
+
+        else:
+
+            start_year_str: str = str(list_of_years_to_collect[0])
+            end_year_str: str = str(list_of_years_to_collect[-1])
+
+        return start_year_str, end_year_str
 
     def _get_export_file_path(self, file_name_str: str) -> Path:
 
@@ -133,11 +155,11 @@ class AlpacaHistoricDataExtraction:
         return ticker_symbol_dict
 
     @staticmethod
-    def _get_file_name_str(ticker_symbol: str) -> str:
-        start_datetime_str: str = "2025" + "_" + "01" + "_" + "01"
-        end_datetime_str: str = "2025" + "_" + "12" + "_" + "31"
+    def _get_file_name_str(ticker_symbol: str, start_year_str: str, end_year_str: str) -> str:
+        start_date_str: str = start_year_str + "_" + "01" + "_" + "01"
+        end_date_str: str = end_year_str + "_" + "12" + "_" + "31"
 
-        return ticker_symbol + "_" + start_datetime_str + "_" + end_datetime_str + ".csv"
+        return ticker_symbol + "_" + start_date_str + "_" + end_date_str + ".csv"
 
     @staticmethod
     def _get_days_in_month(year, month):
