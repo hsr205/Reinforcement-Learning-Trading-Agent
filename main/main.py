@@ -1,8 +1,11 @@
 import asyncio
 from logging import Logger
 
-from data_extraction.alpaca_historic_data_extraction import AlpacaHistoricDataExtraction
 from logger.logger import AppLogger
+from models.alpaca_trading_environment_ppo import AlpacaTradingEnvironmentPPO
+from models.alpaca_trading_environment_random_policy import AlpacaTradingEnvironmentRandomPolicy
+from models.alpaca_trading_ppo_neural_network import AlpacaTradingPPONeuralNetwork
+from models.ppo_config import PPOConfig
 
 
 async def main() -> int:
@@ -10,27 +13,16 @@ async def main() -> int:
 
     try:
 
-        list_of_years_to_collect: list[int] = [2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]
+        alpaca_trading_env_random_policy: AlpacaTradingEnvironmentRandomPolicy = AlpacaTradingEnvironmentRandomPolicy()
 
-        alpaca_historic_data_extraction: AlpacaHistoricDataExtraction = AlpacaHistoricDataExtraction()
+        await alpaca_trading_env_random_policy.initialize_trading_environment_random_policy()
 
-        alpaca_historic_data_extraction.export_historical_stock_data(
-            list_of_years_to_collect=list_of_years_to_collect)
+        ppo_config: PPOConfig = PPOConfig()
+        environment = AlpacaTradingEnvironmentPPO(config=ppo_config)
+        alpaca_trading_ppo_neural_network: AlpacaTradingPPONeuralNetwork = AlpacaTradingPPONeuralNetwork(
+            env=environment, config=ppo_config)
 
-        # alpaca_trading_env_random_policy: AlpacaTradingEnvironmentRandomPolicy = AlpacaTradingEnvironmentRandomPolicy()
-        #
-        # await alpaca_trading_env_random_policy.initialize_trading_environment_random_policy()
-
-        # alpaca_trading_env_ppo: AlpacaTradingEnvironmentPPO = AlpacaTradingEnvironmentPPO()
-        #
-        # await alpaca_trading_env_ppo.step(tensordict=TensorDict())
-
-        # ppo_config: PPOConfig = PPOConfig()
-        # environment = AlpacaTradingEnvironmentPPO(config=ppo_config)
-        # alpaca_trading_ppo_neural_network: AlpacaTradingPPONeuralNetwork = AlpacaTradingPPONeuralNetwork(
-        #     env=environment, config=ppo_config)
-        #
-        # alpaca_trading_ppo_neural_network.train_model()
+        alpaca_trading_ppo_neural_network.train_model()
 
 
     except Exception as e:

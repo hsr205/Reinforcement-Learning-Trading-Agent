@@ -1,7 +1,7 @@
 import asyncio
 import queue
 from collections import deque
-from datetime import time
+from datetime import time, datetime
 from pathlib import Path
 from typing import Any
 from typing import Union
@@ -9,7 +9,7 @@ from typing import Union
 import numpy as np
 import torch
 from alpaca.common import RawData
-from alpaca.data import StockLatestQuoteRequest, Quote
+from alpaca.data import StockLatestQuoteRequest, Quote, StockBarsRequest, TimeFrame
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.trading import Position
 from alpaca.trading.client import TradingClient
@@ -54,21 +54,33 @@ class AlpacaTradingPortfolio:
 
         return portfolio_weights_tensor
 
-    def get_ticker_feature_collections(self, all_positions_list: list[Position],
-                                       account_dict: dict[str, float]) -> tuple[Tensor, np.ndarray]:
+    def get_observation_tensor(self, all_positions_list: list[Position],
+                               account_dict: dict[str, float]) -> Tensor:
 
         matrix_list: list[list[float]] = self._get_matrix_list(all_positions_list_t=all_positions_list,
                                                                account_dict_t=account_dict)
 
-        per_ticker_array: np.ndarray = np.array(matrix_list, dtype=np.float32)
-
         matrix_tensor: Tensor = torch.tensor(matrix_list)
 
-        flattened_tensor = matrix_tensor.view(-1)
+        observation_tensor: Tensor = matrix_tensor.view(-1)
 
-        observation_tensor = torch.flatten(flattened_tensor)
+        return observation_tensor
 
-        return observation_tensor, per_ticker_array
+    # def get_observation_tensor(self, all_positions_list: list[Position],
+    #                                    account_dict: dict[str, float]) -> tuple[Tensor, np.ndarray]:
+    #
+    #     matrix_list: list[list[float]] = self._get_matrix_list(all_positions_list_t=all_positions_list,
+    #                                                            account_dict_t=account_dict)
+    #
+    #     per_ticker_array: np.ndarray = np.array(matrix_list, dtype=np.float32)
+    #
+    #     matrix_tensor: Tensor = torch.tensor(matrix_list)
+    #
+    #     flattened_tensor = matrix_tensor.view(-1)
+    #
+    #     observation_tensor = torch.flatten(flattened_tensor)
+    #
+    #     return observation_tensor, per_ticker_array
 
     def get_account_dict(self) -> dict[str, Any]:
 
